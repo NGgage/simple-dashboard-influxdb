@@ -1,0 +1,2176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InfluxDB Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0f0f23;
+      --bg-secondary: #1a1a35;
+      --bg-card: #1e1e3f;
+      --bg-card-hover: #252550;
+      --text-primary: #ffffff;
+      --text-secondary: #a0a0c0;
+      --text-muted: #6b6b8d;
+      --accent-primary: #6366f1;
+      --accent-secondary: #8b5cf6;
+      --accent-success: #10b981;
+      --accent-warning: #f59e0b;
+      --accent-danger: #ef4444;
+      --border-color: #2d2d5a;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.5;
+      background-image:
+        radial-gradient(ellipse at 10% 10%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 90% 90%, rgba(139, 92, 246, 0.06) 0%, transparent 50%);
+      background-attachment: fixed;
+    }
+
+    /* Header - Enhanced */
+    .header {
+      background: linear-gradient(180deg, rgba(26, 26, 53, 0.95) 0%, rgba(15, 15, 35, 0.9) 100%);
+      border-bottom: 1px solid rgba(99, 102, 241, 0.1);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.2rem;
+      box-shadow: 0 4px 15px -3px rgba(99, 102, 241, 0.5);
+      position: relative;
+    }
+
+    .logo::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%);
+    }
+
+    .header h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 0%, rgba(99, 102, 241, 0.8) 150%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.02em;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    /* Connection Indicator - Enhanced */
+    .connection-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 1rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .connection-indicator:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(99, 102, 241, 0.3);
+    }
+
+    .connection-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent-success);
+    }
+
+    .connection-indicator.error .connection-icon {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
+      color: var(--accent-danger);
+    }
+
+    .connection-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+
+    .connection-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .connection-status {
+      font-size: 0.8rem;
+      color: var(--accent-success);
+      font-weight: 500;
+    }
+
+    .connection-indicator.error .connection-status {
+      color: var(--accent-danger);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-success);
+      box-shadow: 0 0 10px var(--accent-success);
+      animation: pulse-glow 2s infinite;
+    }
+
+    .status-dot.error {
+      background: var(--accent-danger);
+      box-shadow: 0 0 10px var(--accent-danger);
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; box-shadow: 0 0 10px currentColor; }
+      50% { opacity: 0.6; box-shadow: 0 0 5px currentColor; }
+    }
+
+    /* Settings Toggle */
+    .settings-section {
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 12px;
+      margin-bottom: 1rem;
+    }
+
+    .settings-section-title {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 1rem;
+      font-weight: 500;
+    }
+
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .settings-row:last-child {
+      border-bottom: none;
+    }
+
+    .settings-row-label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .settings-row-label span:first-child {
+      font-size: 0.9rem;
+      color: var(--text-primary);
+    }
+
+    .settings-row-label span:last-child {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .settings-row select {
+      padding: 0.5rem 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      min-width: 140px;
+    }
+
+    .settings-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 10px;
+      margin-top: 1rem;
+    }
+
+    .settings-info svg {
+      width: 20px;
+      height: 20px;
+      color: var(--accent-primary);
+      flex-shrink: 0;
+    }
+
+    .settings-info p {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .btn {
+      padding: 0.6rem 1.25rem;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      color: white;
+      box-shadow: 0 2px 10px -2px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px -4px rgba(99, 102, 241, 0.5);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--accent-success), #059669);
+      color: white;
+      box-shadow: 0 2px 10px -2px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-success:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px -4px rgba(16, 185, 129, 0.5);
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, var(--accent-danger), #dc2626);
+      color: white;
+    }
+
+    .btn-danger:hover {
+      box-shadow: 0 4px 15px -3px rgba(239, 68, 68, 0.5);
+    }
+
+    /* Main Content */
+    .main {
+      padding: 2rem;
+      max-width: 1800px;
+      margin: 0 auto;
+    }
+
+    /* Stats Overview - Enhanced */
+    .stats-overview {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: linear-gradient(165deg, rgba(30, 30, 63, 0.8) 0%, rgba(26, 26, 53, 0.9) 100%);
+      border-radius: 16px;
+      padding: 1.25rem 1.5rem;
+      border: 1px solid rgba(99, 102, 241, 0.1);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 80px;
+      height: 80px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+      transform: translate(30%, -30%);
+    }
+
+    .stat-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.4);
+      border-color: rgba(99, 102, 241, 0.3);
+    }
+
+    .stat-card .label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+    }
+
+    .stat-card .value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 0%, var(--accent-primary) 150%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.02em;
+    }
+
+    /* Dashboard Grid */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 1.5rem;
+    }
+
+    /* Panel Card - Enhanced Design */
+    .panel-card {
+      background: linear-gradient(165deg, rgba(30, 30, 63, 0.9) 0%, rgba(26, 26, 53, 0.95) 100%);
+      border-radius: 20px;
+      border: 1px solid rgba(99, 102, 241, 0.15);
+      overflow: hidden;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      backdrop-filter: blur(10px);
+    }
+
+    .panel-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary), var(--accent-primary));
+      background-size: 200% 100%;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .panel-card:hover {
+      border-color: rgba(99, 102, 241, 0.4);
+      box-shadow:
+        0 20px 40px -15px rgba(0, 0, 0, 0.5),
+        0 0 30px -10px rgba(99, 102, 241, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      transform: translateY(-4px);
+    }
+
+    .panel-card:hover::before {
+      opacity: 1;
+      animation: shimmer 2s infinite linear;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    .panel-card.expanded {
+      grid-column: span 2;
+    }
+
+    .panel-card.no-measurement {
+      border-style: dashed;
+      border-color: rgba(107, 107, 141, 0.3);
+      background: linear-gradient(165deg, rgba(30, 30, 63, 0.5) 0%, rgba(26, 26, 53, 0.5) 100%);
+    }
+
+    .panel-card.no-measurement::before {
+      display: none;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.25rem 1.5rem;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-icon::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%);
+    }
+
+    .card-icon.purple {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(139, 92, 246, 0.1));
+      color: #a78bfa;
+      box-shadow: 0 4px 15px -3px rgba(139, 92, 246, 0.4);
+    }
+    .card-icon.blue {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.1));
+      color: #60a5fa;
+      box-shadow: 0 4px 15px -3px rgba(59, 130, 246, 0.4);
+    }
+    .card-icon.green {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.1));
+      color: #34d399;
+      box-shadow: 0 4px 15px -3px rgba(16, 185, 129, 0.4);
+    }
+    .card-icon.orange {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.3), rgba(245, 158, 11, 0.1));
+      color: #fbbf24;
+      box-shadow: 0 4px 15px -3px rgba(245, 158, 11, 0.4);
+    }
+    .card-icon.pink {
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.3), rgba(236, 72, 153, 0.1));
+      color: #f472b6;
+      box-shadow: 0 4px 15px -3px rgba(236, 72, 153, 0.4);
+    }
+    .card-icon.gray {
+      background: linear-gradient(135deg, rgba(107, 107, 141, 0.3), rgba(107, 107, 141, 0.1));
+      color: #9b9bc0;
+      box-shadow: none;
+    }
+
+    .card-title h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+    }
+
+    .card-title .subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.25s ease;
+    }
+
+    .icon-btn:hover {
+      background: var(--accent-primary);
+      color: white;
+      border-color: var(--accent-primary);
+      box-shadow: 0 4px 12px -2px rgba(99, 102, 241, 0.5);
+      transform: translateY(-2px);
+    }
+
+    .card-body {
+      padding: 1.5rem;
+      position: relative;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 180px;
+      margin-top: 0.5rem;
+    }
+
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-top: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .series-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .series-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      padding: 0.35rem 0.75rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .series-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .last-updated {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* Empty Measurement State - Enhanced */
+    .empty-measurement {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2.5rem;
+      text-align: center;
+      color: var(--text-muted);
+      min-height: 220px;
+      background: radial-gradient(ellipse at center, rgba(99, 102, 241, 0.05) 0%, transparent 70%);
+    }
+
+    .empty-measurement svg {
+      width: 56px;
+      height: 56px;
+      margin-bottom: 1.25rem;
+      opacity: 0.4;
+      stroke-width: 1.5;
+    }
+
+    .empty-measurement p {
+      margin-bottom: 1.25rem;
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+    }
+
+    /* Settings Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      width: 90%;
+      max-width: 600px;
+      max-height: 85vh;
+      overflow: hidden;
+      transform: translateY(20px);
+      transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.active .modal {
+      transform: translateY(0);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-header h2 {
+      font-size: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .modal-body {
+      padding: 1.5rem;
+      overflow-y: auto;
+      max-height: 55vh;
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+      color: var(--text-secondary);
+    }
+
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      transition: border-color 0.2s ease;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+    }
+
+    .form-group select option {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 1.5rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .modal-footer-left {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .modal-footer-right {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    /* Series List */
+    .series-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .series-entry {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      position: relative;
+    }
+
+    .series-entry-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .series-entry-title {
+      font-size: 0.9rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .series-entry-color {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+    }
+
+    .series-entry-remove {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .series-entry-remove:hover {
+      background: var(--accent-danger);
+      border-color: var(--accent-danger);
+      color: white;
+    }
+
+    .series-entry-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .series-field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    .series-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .series-field.full-width {
+      grid-column: span 3;
+    }
+
+    .series-field label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .series-field select,
+    .series-field input {
+      padding: 0.5rem 0.75rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+    }
+
+    .series-field select:focus,
+    .series-field input:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+    }
+
+    .add-series-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 1rem;
+      background: transparent;
+      border: 2px dashed var(--border-color);
+      border-radius: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      width: 100%;
+      font-size: 0.9rem;
+    }
+
+    .add-series-btn:hover {
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+    }
+
+    /* Color picker in series */
+    .color-picker-row {
+      display: flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }
+
+    .color-picker-row .color-option {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s ease;
+    }
+
+    .color-picker-row .color-option:hover,
+    .color-picker-row .color-option.active {
+      border-color: white;
+      transform: scale(1.1);
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: var(--border-color);
+      margin: 1.5rem 0;
+    }
+
+    /* Loading States */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem;
+      color: var(--text-muted);
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border-color);
+      border-top-color: var(--accent-primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 1rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+      }
+
+      .main {
+        padding: 1rem;
+      }
+
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .panel-card.expanded {
+        grid-column: span 1;
+      }
+
+      .series-field-row {
+        grid-template-columns: 1fr;
+      }
+
+      .series-field.full-width {
+        grid-column: span 1;
+      }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-secondary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-primary);
+    }
+
+    /* SVG Icons */
+    .icon {
+      width: 18px;
+      height: 18px;
+    }
+
+    .icon-sm {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* Time Range Selector - Enhanced */
+    .time-selector {
+      display: flex;
+      gap: 0.25rem;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 0.3rem;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .time-option {
+      padding: 0.4rem 0.75rem;
+      border-radius: 7px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+      font-weight: 500;
+    }
+
+    .time-option:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .time-option.active {
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      color: white;
+      box-shadow: 0 2px 8px -2px rgba(99, 102, 241, 0.5);
+    }
+
+    /* Current values display - Enhanced */
+    .current-values {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .current-value-item {
+      display: flex;
+      flex-direction: column;
+      padding: 0.75rem 1rem;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      min-width: 100px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .current-value-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: currentColor;
+      opacity: 0.6;
+    }
+
+    .current-value-item .label {
+      font-size: 0.7rem;
+      color: inherit;
+      opacity: 0.7;
+      margin-bottom: 0.35rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+    }
+
+    .current-value-item .value-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.35rem;
+    }
+
+    .current-value-item .value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .current-value-item .unit {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Selection path display */
+    .selection-path {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
+    .selection-path .separator {
+      color: var(--text-muted);
+    }
+
+    .selection-path .path-item {
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+        </svg>
+      </div>
+      <div>
+        <h1>InfluxDB Dashboard</h1>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="time-selector">
+        <button class="time-option" data-range="5m">5m</button>
+        <button class="time-option" data-range="15m">15m</button>
+        <button class="time-option" data-range="1h">1h</button>
+        <button class="time-option active" data-range="6h">6h</button>
+        <button class="time-option" data-range="24h">24h</button>
+        <button class="time-option" data-range="7d">7d</button>
+      </div>
+      <div class="connection-indicator" id="connectionIndicator" onclick="openGlobalSettings()">
+        <div class="connection-icon">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12.55a11 11 0 0114 0"/>
+            <path d="M1.42 9a16 16 0 0121.16 0"/>
+            <path d="M8.53 16.11a6 6 0 016.95 0"/>
+            <circle cx="12" cy="20" r="1"/>
+          </svg>
+        </div>
+        <div class="connection-info">
+          <span class="connection-label">InfluxDB</span>
+          <span class="connection-status" id="connectionStatus">Connecting...</span>
+        </div>
+        <span class="status-dot" id="statusDot"></span>
+      </div>
+      <button class="btn btn-secondary" onclick="refreshAll()">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 4v6h-6M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+        </svg>
+        Refresh
+      </button>
+      <button class="btn btn-success" onclick="addPanel()">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Add Chart
+      </button>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="stats-overview" id="statsOverview">
+      <div class="stat-card">
+        <div class="label">Charts</div>
+        <div class="value" id="statPanels">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Devices</div>
+        <div class="value" id="statDevices">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Time Range</div>
+        <div class="value" id="statTimeRange">6h</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Refresh Rate</div>
+        <div class="value" id="statRefresh">30s</div>
+      </div>
+    </div>
+
+    <div class="dashboard-grid" id="dashboardGrid">
+      <!-- Panels will be rendered here -->
+    </div>
+  </main>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+          <span id="modalTitle">Panel Settings</span>
+        </h2>
+        <button class="icon-btn" onclick="closeModal()">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Modal content will be populated dynamically -->
+      </div>
+      <div class="modal-footer">
+        <div class="modal-footer-left">
+          <button class="btn btn-danger" id="deletePanelBtn" onclick="deletePanel()" style="display: none;">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+            </svg>
+            Delete
+          </button>
+        </div>
+        <div class="modal-footer-right">
+          <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Global Settings Modal -->
+  <div class="modal-overlay" id="globalSettingsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+          Dashboard Settings
+        </h2>
+        <button class="icon-btn" onclick="closeGlobalSettings()">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" id="globalSettingsBody">
+        <div class="settings-section">
+          <div class="settings-section-title">Connection</div>
+          <div class="settings-row">
+            <div class="settings-row-label">
+              <span>Status</span>
+              <span>InfluxDB connection state</span>
+            </div>
+            <div class="status-badge" style="padding: 0.4rem 0.8rem;">
+              <span class="status-dot" id="settingsStatusDot"></span>
+              <span id="settingsConnectionStatus">Connected</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-label">
+              <span>Bucket</span>
+              <span>Data source bucket name</span>
+            </div>
+            <span style="color: var(--text-secondary); font-size: 0.9rem;" id="settingsBucket">-</span>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-label">
+              <span>Organization</span>
+              <span>InfluxDB organization</span>
+            </div>
+            <span style="color: var(--text-secondary); font-size: 0.9rem;" id="settingsOrg">-</span>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Dashboard</div>
+          <div class="settings-row">
+            <div class="settings-row-label">
+              <span>Auto Refresh</span>
+              <span>Data refresh interval</span>
+            </div>
+            <select id="globalRefreshInterval">
+              <option value="10000">10 seconds</option>
+              <option value="30000">30 seconds</option>
+              <option value="60000">1 minute</option>
+              <option value="300000">5 minutes</option>
+              <option value="0">Disabled</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <div class="settings-row-label">
+              <span>Default Time Range</span>
+              <span>Initial time window for charts</span>
+            </div>
+            <select id="globalDefaultTimeRange">
+              <option value="5m">5 minutes</option>
+              <option value="15m">15 minutes</option>
+              <option value="1h">1 hour</option>
+              <option value="6h">6 hours</option>
+              <option value="24h">24 hours</option>
+              <option value="7d">7 days</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-info">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+          <p>Connection settings (URL, token, bucket) are configured via environment variables in <code>.env</code> or <code>docker-compose.yml</code></p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="modal-footer-left"></div>
+        <div class="modal-footer-right">
+          <button class="btn btn-secondary" onclick="closeGlobalSettings()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveGlobalSettings()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let availableDevices = [];
+    let deviceMeasurements = {};
+    let measurementFields = {};
+    let settings = { panels: [], dashboard: { refreshInterval: 30000 } };
+    let charts = {};
+    let currentPanelId = null;
+    let timeRange = '6h';
+    let refreshInterval = null;
+    let bucketName = '';
+
+    // Chart colors
+    const chartColors = [
+      '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f59e0b',
+      '#10b981', '#14b8a6', '#06b6d4', '#3b82f6', '#a855f7'
+    ];
+
+    const iconColors = ['purple', 'blue', 'green', 'orange', 'pink'];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadConfig();
+      await loadSettings();
+      await loadAvailableDevices();
+      renderDashboard();
+      setupTimeRangeSelector();
+      startAutoRefresh();
+      updateStats();
+    });
+
+    // Load config
+    async function loadConfig() {
+      try {
+        const response = await fetch('/api/config');
+        const config = await response.json();
+        bucketName = config.bucket;
+      } catch (error) {
+        console.error('Failed to load config:', error);
+      }
+    }
+
+    // Time range selector
+    function setupTimeRangeSelector() {
+      document.querySelectorAll('.time-option').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('.time-option').forEach(b => b.classList.remove('active'));
+          e.target.classList.add('active');
+          timeRange = e.target.dataset.range;
+          document.getElementById('statTimeRange').textContent = timeRange;
+          refreshAll();
+        });
+      });
+    }
+
+    // Auto refresh
+    function startAutoRefresh() {
+      if (refreshInterval) clearInterval(refreshInterval);
+      const interval = settings.dashboard?.refreshInterval || 30000;
+      refreshInterval = setInterval(refreshAll, interval);
+      document.getElementById('statRefresh').textContent = (interval / 1000) + 's';
+    }
+
+    // Load settings
+    async function loadSettings() {
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          settings = await response.json();
+          if (!settings.panels) settings.panels = [];
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    }
+
+    // Save settings to server
+    async function saveSettingsToServer() {
+      try {
+        await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settings)
+        });
+      } catch (error) {
+        console.error('Failed to save settings:', error);
+      }
+    }
+
+    // Load available devices
+    async function loadAvailableDevices() {
+      try {
+        const response = await fetch('/api/devices');
+        if (!response.ok) throw new Error('Failed to fetch devices');
+
+        const csvData = await response.text();
+        availableDevices = parseCSV(csvData).filter(row => row._value).map(row => row._value);
+
+        updateConnectionStatus(true);
+        document.getElementById('statDevices').textContent = availableDevices.length;
+      } catch (error) {
+        console.error('Failed to load devices:', error);
+        updateConnectionStatus(false);
+      }
+    }
+
+    // Load measurements for a device
+    async function loadMeasurementsForDevice(device) {
+      if (deviceMeasurements[device]) {
+        return deviceMeasurements[device];
+      }
+
+      try {
+        const response = await fetch(`/api/measurements?device=${encodeURIComponent(device)}`);
+        const csvData = await response.text();
+        const measurements = parseCSV(csvData)
+          .filter(row => row._value || row._measurement)
+          .map(row => row._value || row._measurement);
+
+        // Remove duplicates
+        deviceMeasurements[device] = [...new Set(measurements)];
+        return deviceMeasurements[device];
+      } catch (error) {
+        console.error(`Failed to load measurements for ${device}:`, error);
+        return [];
+      }
+    }
+
+    // Load fields for a measurement
+    async function loadFieldsForMeasurement(measurement) {
+      if (measurementFields[measurement]) {
+        return measurementFields[measurement];
+      }
+
+      try {
+        const response = await fetch(`/api/fields/${encodeURIComponent(measurement)}`);
+        const csvData = await response.text();
+        const fields = parseCSV(csvData).filter(row => row._value).map(row => row._value);
+        measurementFields[measurement] = fields;
+        return fields;
+      } catch (error) {
+        console.error(`Failed to load fields for ${measurement}:`, error);
+        return [];
+      }
+    }
+
+    // Parse CSV response
+    function parseCSV(csv) {
+      const lines = csv.trim().split('\n');
+      if (lines.length < 2) return [];
+
+      const headers = lines[0].split(',');
+      const results = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim() || lines[i].startsWith('#')) continue;
+
+        const values = parseCSVLine(lines[i]);
+        const row = {};
+
+        headers.forEach((header, index) => {
+          row[header.trim()] = values[index]?.trim();
+        });
+
+        results.push(row);
+      }
+
+      return results;
+    }
+
+    function parseCSVLine(line) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (const char of line) {
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current);
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current);
+      return result;
+    }
+
+    // Update stats
+    function updateStats() {
+      document.getElementById('statPanels').textContent = settings.panels.length;
+    }
+
+    // Render dashboard
+    function renderDashboard() {
+      const grid = document.getElementById('dashboardGrid');
+
+      // Destroy all existing charts before re-rendering
+      Object.keys(charts).forEach(panelId => {
+        if (charts[panelId]) {
+          charts[panelId].destroy();
+          delete charts[panelId];
+        }
+      });
+
+      grid.innerHTML = '';
+
+      // Render existing panels
+      settings.panels.forEach((panel, index) => {
+        const card = createPanelCard(panel, index);
+        grid.appendChild(card);
+
+        // Load data if series exist
+        if (panel.series && panel.series.length > 0) {
+          loadPanelData(panel.id);
+        }
+      });
+
+      updateStats();
+    }
+
+    // Create panel card
+    function createPanelCard(panel, index) {
+      const card = document.createElement('div');
+      const hasSeries = panel.series && panel.series.length > 0;
+      card.className = `panel-card ${!hasSeries ? 'no-measurement' : ''}`;
+      card.id = `panel-${panel.id}`;
+
+      const colorIndex = index % iconColors.length;
+      const displayName = panel.title || (hasSeries ? panel.series.map(s => s.label || s.measurement).join(', ') : 'Unconfigured');
+      const subtitle = hasSeries ? `${panel.series.length} series` : 'Click settings to configure';
+
+      card.innerHTML = `
+        <div class="card-header">
+          <div class="card-title">
+            <div class="card-icon ${hasSeries ? iconColors[colorIndex] : 'gray'}">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+              </svg>
+            </div>
+            <div>
+              <h3>${displayName}</h3>
+              <div class="subtitle">${subtitle}</div>
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="icon-btn" onclick="toggleExpand('${panel.id}')" title="Expand">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 3 21 3 21 9"/>
+                <polyline points="9 21 3 21 3 15"/>
+                <line x1="21" y1="3" x2="14" y2="10"/>
+                <line x1="3" y1="21" x2="10" y2="14"/>
+              </svg>
+            </button>
+            <button class="icon-btn" onclick="openPanelSettings('${panel.id}')" title="Settings">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          ${hasSeries ? `
+            <div class="current-values" id="values-${panel.id}">
+              ${panel.series.map((s, i) => `
+                <div class="current-value-item">
+                  <div class="label" style="color: ${s.color}">${s.label || s.field || s.measurement}</div>
+                  <div class="value-row">
+                    <span class="value" id="value-${panel.id}-${i}">--</span>
+                    <span class="unit">${panel.unit || ''}</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <div class="chart-container">
+              <canvas id="chart-${panel.id}"></canvas>
+            </div>
+          ` : `
+            <div class="empty-measurement">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+              </svg>
+              <p>No data sources selected</p>
+              <button class="btn btn-primary" onclick="openPanelSettings('${panel.id}')">
+                Configure
+              </button>
+            </div>
+          `}
+        </div>
+        ${hasSeries ? `
+          <div class="card-footer">
+            <div class="series-legend">
+              ${panel.series.map(s => `
+                <div class="series-item">
+                  <div class="series-dot" style="background: ${s.color}"></div>
+                  <span>${s.device} / ${s.label || s.field}</span>
+                </div>
+              `).join('')}
+            </div>
+            <div class="last-updated" id="updated-${panel.id}">--</div>
+          </div>
+        ` : ''}
+      `;
+
+      return card;
+    }
+
+    // Add new panel
+    function addPanel() {
+      const newPanel = {
+        id: 'panel-' + Date.now(),
+        title: '',
+        series: [],
+        unit: '',
+        minValue: null,
+        maxValue: null
+      };
+
+      settings.panels.push(newPanel);
+      saveSettingsToServer();
+      renderDashboard();
+
+      // Open settings for new panel
+      openPanelSettings(newPanel.id);
+    }
+
+    // Delete panel
+    function deletePanel() {
+      if (!currentPanelId) return;
+
+      settings.panels = settings.panels.filter(p => p.id !== currentPanelId);
+
+      // Destroy chart if exists
+      if (charts[currentPanelId]) {
+        charts[currentPanelId].destroy();
+        delete charts[currentPanelId];
+      }
+
+      saveSettingsToServer();
+      closeModal();
+      renderDashboard();
+    }
+
+    // Load panel data
+    async function loadPanelData(panelId) {
+      const panel = settings.panels.find(p => p.id === panelId);
+      if (!panel || !panel.series || panel.series.length === 0) return;
+
+      try {
+        const allSeriesData = [];
+
+        for (let i = 0; i < panel.series.length; i++) {
+          const series = panel.series[i];
+          const field = series.field || '_value';
+
+          const query = `
+from(bucket: "${bucketName}")
+  |> range(start: -${timeRange})
+  |> filter(fn: (r) => r.device_name == "${series.device}")
+  |> filter(fn: (r) => r._measurement == "${series.measurement}")
+  |> filter(fn: (r) => r._field == "${field}")
+  |> aggregateWindow(every: ${getAggregateWindow()}, fn: mean, createEmpty: false)
+  |> yield(name: "mean")
+`;
+
+          const response = await fetch('/api/query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query })
+          });
+
+          const csvData = await response.text();
+          const data = parseCSV(csvData);
+          allSeriesData.push({ series, data, index: i });
+
+          // Update current value
+          if (data.length > 0) {
+            const valueEl = document.getElementById(`value-${panelId}-${i}`);
+            if (valueEl) {
+              const currentValue = parseFloat(data[data.length - 1]._value);
+              valueEl.textContent = currentValue.toFixed(2);
+            }
+          }
+        }
+
+        if (allSeriesData.some(s => s.data.length > 0)) {
+          updateChart(panelId, allSeriesData, panel);
+
+          const updatedEl = document.getElementById(`updated-${panelId}`);
+          if (updatedEl) {
+            updatedEl.textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+          }
+        }
+      } catch (error) {
+        console.error(`Failed to load data for panel ${panelId}:`, error);
+      }
+    }
+
+    // Get aggregate window based on time range
+    function getAggregateWindow() {
+      const windows = {
+        '5m': '10s',
+        '15m': '30s',
+        '1h': '1m',
+        '6h': '5m',
+        '24h': '15m',
+        '7d': '1h'
+      };
+      return windows[timeRange] || '5m';
+    }
+
+    // Update chart with multiple series
+    function updateChart(panelId, allSeriesData, panel) {
+      const ctx = document.getElementById(`chart-${panelId}`);
+      if (!ctx) return;
+
+      const datasets = allSeriesData.map(({ series, data }) => {
+        const labels = data.map(row => new Date(row._time));
+        const values = data.map(row => parseFloat(row._value));
+
+        return {
+          label: series.label || `${series.device}/${series.field}`,
+          data: values.map((v, i) => ({ x: labels[i], y: v })),
+          borderColor: series.color,
+          backgroundColor: series.color + '20',
+          borderWidth: 2,
+          fill: false,
+          tension: 0.4,
+          pointRadius: 0,
+          pointHoverRadius: 4
+        };
+      });
+
+      if (charts[panelId]) {
+        charts[panelId].data.datasets = datasets;
+        charts[panelId].update('none');
+      } else {
+        charts[panelId] = new Chart(ctx, {
+          type: 'line',
+          data: { datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                mode: 'index',
+                intersect: false,
+                backgroundColor: '#1e1e3f',
+                titleColor: '#fff',
+                bodyColor: '#a0a0c0',
+                borderColor: '#2d2d5a',
+                borderWidth: 1,
+                padding: 12,
+                callbacks: {
+                  label: (context) => {
+                    const unit = panel.unit || '';
+                    return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} ${unit}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                type: 'time',
+                grid: { color: '#2d2d5a', drawBorder: false },
+                ticks: { color: '#6b6b8d', maxTicksLimit: 6 }
+              },
+              y: {
+                grid: { color: '#2d2d5a', drawBorder: false },
+                ticks: { color: '#6b6b8d' },
+                min: panel.minValue !== null ? panel.minValue : undefined,
+                max: panel.maxValue !== null ? panel.maxValue : undefined
+              }
+            },
+            interaction: {
+              mode: 'nearest',
+              axis: 'x',
+              intersect: false
+            }
+          }
+        });
+      }
+    }
+
+    // Toggle card expand
+    function toggleExpand(panelId) {
+      const card = document.getElementById(`panel-${panelId}`);
+      if (card) {
+        card.classList.toggle('expanded');
+        if (charts[panelId]) {
+          setTimeout(() => charts[panelId].resize(), 300);
+        }
+      }
+    }
+
+    // Refresh all panels
+    async function refreshAll() {
+      for (const panel of settings.panels) {
+        if (panel.series && panel.series.length > 0) {
+          await loadPanelData(panel.id);
+        }
+      }
+    }
+
+    // Open panel settings
+    async function openPanelSettings(panelId) {
+      currentPanelId = panelId;
+      const panel = settings.panels.find(p => p.id === panelId);
+      if (!panel) return;
+
+      document.getElementById('modalTitle').textContent = panel.title || 'Panel Settings';
+      document.getElementById('deletePanelBtn').style.display = 'flex';
+
+      document.getElementById('modalBody').innerHTML = `
+        <div class="form-group">
+          <label>Chart Title</label>
+          <input type="text" id="settingTitle" value="${panel.title || ''}" placeholder="Optional title for the chart">
+        </div>
+        <div class="form-group">
+          <label>Unit</label>
+          <input type="text" id="settingUnit" value="${panel.unit || ''}" placeholder="e.g., °C, %, MB/s">
+        </div>
+        <div class="form-group">
+          <label>Y-Axis Min</label>
+          <input type="number" id="settingMinValue" value="${panel.minValue ?? ''}" placeholder="Auto">
+        </div>
+        <div class="form-group">
+          <label>Y-Axis Max</label>
+          <input type="number" id="settingMaxValue" value="${panel.maxValue ?? ''}" placeholder="Auto">
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="form-group">
+          <label>Data Series</label>
+          <div class="series-list" id="seriesList">
+            ${(panel.series || []).map((s, i) => createSeriesEntryHTML(s, i)).join('')}
+          </div>
+          <button type="button" class="add-series-btn" onclick="addSeries()">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Data Series
+          </button>
+        </div>
+      `;
+
+      // Pre-load data for existing series
+      for (const series of (panel.series || [])) {
+        if (series.device) {
+          await loadMeasurementsForDevice(series.device);
+        }
+        if (series.measurement) {
+          await loadFieldsForMeasurement(series.measurement);
+        }
+      }
+
+      document.getElementById('settingsModal').classList.add('active');
+    }
+
+    // Create series entry HTML
+    function createSeriesEntryHTML(series, index) {
+      const color = series.color || chartColors[index % chartColors.length];
+      const measurements = deviceMeasurements[series.device] || [];
+      const fields = measurementFields[series.measurement] || [];
+
+      return `
+        <div class="series-entry" data-index="${index}">
+          <div class="series-entry-header">
+            <div class="series-entry-title">
+              <div class="series-entry-color" style="background: ${color}"></div>
+              <span>Series ${index + 1}</span>
+            </div>
+            <button type="button" class="series-entry-remove" onclick="removeSeries(${index})" title="Remove">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div class="series-entry-fields">
+            <div class="series-field-row">
+              <div class="series-field">
+                <label>Device</label>
+                <select id="series-device-${index}" onchange="onSeriesDeviceChange(${index}, this.value)">
+                  <option value="">-- Select Device --</option>
+                  ${availableDevices.map(d => `
+                    <option value="${d}" ${series.device === d ? 'selected' : ''}>${d}</option>
+                  `).join('')}
+                </select>
+              </div>
+              <div class="series-field">
+                <label>Measurement</label>
+                <select id="series-measurement-${index}" onchange="onSeriesMeasurementChange(${index}, this.value)">
+                  ${measurements.length > 0 ? `
+                    <option value="">-- Select --</option>
+                    ${measurements.map(m => `
+                      <option value="${m}" ${series.measurement === m ? 'selected' : ''}>${m}</option>
+                    `).join('')}
+                  ` : '<option value="">Select device first</option>'}
+                </select>
+              </div>
+              <div class="series-field">
+                <label>Field (Value)</label>
+                <select id="series-field-${index}">
+                  ${fields.length > 0 ? fields.map(f => `
+                    <option value="${f}" ${series.field === f ? 'selected' : ''}>${f}</option>
+                  `).join('') : '<option value="">Select measurement first</option>'}
+                </select>
+              </div>
+            </div>
+            <div class="series-field-row">
+              <div class="series-field">
+                <label>Label</label>
+                <input type="text" id="series-label-${index}" value="${series.label || ''}" placeholder="Optional display label">
+              </div>
+              <div class="series-field" style="grid-column: span 2;">
+                <label>Color</label>
+                <div class="color-picker-row" id="series-colors-${index}">
+                  ${chartColors.map(c => `
+                    <div class="color-option ${color === c ? 'active' : ''}"
+                         style="background: ${c}"
+                         data-color="${c}"
+                         onclick="selectSeriesColor(${index}, this)"></div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Add new series
+    function addSeries() {
+      const panel = settings.panels.find(p => p.id === currentPanelId);
+      if (!panel) return;
+
+      const newIndex = (panel.series || []).length;
+      const newSeries = {
+        device: '',
+        measurement: '',
+        field: '',
+        label: '',
+        color: chartColors[newIndex % chartColors.length]
+      };
+
+      if (!panel.series) panel.series = [];
+      panel.series.push(newSeries);
+
+      const seriesList = document.getElementById('seriesList');
+      seriesList.insertAdjacentHTML('beforeend', createSeriesEntryHTML(newSeries, newIndex));
+    }
+
+    // Remove series
+    function removeSeries(index) {
+      const panel = settings.panels.find(p => p.id === currentPanelId);
+      if (!panel || !panel.series) return;
+
+      panel.series.splice(index, 1);
+
+      // Re-render series list
+      const seriesList = document.getElementById('seriesList');
+      seriesList.innerHTML = panel.series.map((s, i) => createSeriesEntryHTML(s, i)).join('');
+    }
+
+    // On series device change - load measurements
+    async function onSeriesDeviceChange(index, device) {
+      const measurementSelect = document.getElementById(`series-measurement-${index}`);
+      const fieldSelect = document.getElementById(`series-field-${index}`);
+
+      if (!device) {
+        measurementSelect.innerHTML = '<option value="">Select device first</option>';
+        fieldSelect.innerHTML = '<option value="">Select measurement first</option>';
+        return;
+      }
+
+      measurementSelect.innerHTML = '<option value="">Loading...</option>';
+      fieldSelect.innerHTML = '<option value="">Select measurement first</option>';
+
+      const measurements = await loadMeasurementsForDevice(device);
+      measurementSelect.innerHTML = `
+        <option value="">-- Select --</option>
+        ${measurements.map(m => `<option value="${m}">${m}</option>`).join('')}
+      `;
+    }
+
+    // On series measurement change - load fields
+    async function onSeriesMeasurementChange(index, measurement) {
+      const fieldSelect = document.getElementById(`series-field-${index}`);
+
+      if (!measurement) {
+        fieldSelect.innerHTML = '<option value="">Select measurement first</option>';
+        return;
+      }
+
+      fieldSelect.innerHTML = '<option value="">Loading...</option>';
+      const fields = await loadFieldsForMeasurement(measurement);
+      fieldSelect.innerHTML = fields.map(f => `<option value="${f}">${f}</option>`).join('');
+    }
+
+    // Select series color
+    function selectSeriesColor(index, element) {
+      const container = document.getElementById(`series-colors-${index}`);
+      container.querySelectorAll('.color-option').forEach(el => el.classList.remove('active'));
+      element.classList.add('active');
+
+      // Update the color indicator
+      const entry = element.closest('.series-entry');
+      const colorIndicator = entry.querySelector('.series-entry-color');
+      colorIndicator.style.background = element.dataset.color;
+    }
+
+    // Close modal
+    function closeModal() {
+      document.getElementById('settingsModal').classList.remove('active');
+      currentPanelId = null;
+    }
+
+    // Save settings
+    async function saveSettings() {
+      if (!currentPanelId) return;
+
+      const panelIndex = settings.panels.findIndex(p => p.id === currentPanelId);
+      if (panelIndex === -1) return;
+
+      // Gather series data
+      const seriesEntries = document.querySelectorAll('.series-entry');
+      const series = [];
+
+      seriesEntries.forEach((entry, i) => {
+        const device = document.getElementById(`series-device-${i}`)?.value || '';
+        const measurement = document.getElementById(`series-measurement-${i}`)?.value || '';
+        const field = document.getElementById(`series-field-${i}`)?.value || '';
+
+        if (!device || !measurement) return;
+
+        const label = document.getElementById(`series-label-${i}`)?.value || '';
+        const activeColor = entry.querySelector('.color-option.active');
+        const color = activeColor?.dataset.color || chartColors[i % chartColors.length];
+
+        series.push({ device, measurement, field, label, color });
+      });
+
+      settings.panels[panelIndex] = {
+        ...settings.panels[panelIndex],
+        title: document.getElementById('settingTitle').value,
+        unit: document.getElementById('settingUnit').value,
+        minValue: document.getElementById('settingMinValue').value ? parseFloat(document.getElementById('settingMinValue').value) : null,
+        maxValue: document.getElementById('settingMaxValue').value ? parseFloat(document.getElementById('settingMaxValue').value) : null,
+        series
+      };
+
+      // Destroy old chart if exists
+      if (charts[currentPanelId]) {
+        charts[currentPanelId].destroy();
+        delete charts[currentPanelId];
+      }
+
+      await saveSettingsToServer();
+      closeModal();
+      renderDashboard();
+    }
+
+    // Close modal on overlay click
+    document.getElementById('settingsModal').addEventListener('click', (e) => {
+      if (e.target.classList.contains('modal-overlay')) {
+        closeModal();
+      }
+    });
+
+    document.getElementById('globalSettingsModal').addEventListener('click', (e) => {
+      if (e.target.classList.contains('modal-overlay')) {
+        closeGlobalSettings();
+      }
+    });
+
+    // Global Settings functions
+    async function openGlobalSettings() {
+      const modal = document.getElementById('globalSettingsModal');
+
+      // Populate current values
+      document.getElementById('globalRefreshInterval').value = settings.dashboard?.refreshInterval || 30000;
+      document.getElementById('globalDefaultTimeRange').value = settings.dashboard?.defaultTimeRange || '6h';
+
+      // Update connection info
+      const isConnected = availableDevices.length > 0;
+      document.getElementById('settingsStatusDot').className = 'status-dot' + (isConnected ? '' : ' error');
+      document.getElementById('settingsConnectionStatus').textContent = isConnected ? 'Connected' : 'Disconnected';
+      document.getElementById('settingsBucket').textContent = bucketName || '-';
+
+      // Fetch org info
+      try {
+        const response = await fetch('/api/config');
+        const config = await response.json();
+        document.getElementById('settingsOrg').textContent = config.organization || '-';
+      } catch (e) {
+        document.getElementById('settingsOrg').textContent = '-';
+      }
+
+      modal.classList.add('active');
+    }
+
+    function closeGlobalSettings() {
+      document.getElementById('globalSettingsModal').classList.remove('active');
+    }
+
+    async function saveGlobalSettings() {
+      const refreshIntervalValue = parseInt(document.getElementById('globalRefreshInterval').value);
+      const defaultTimeRange = document.getElementById('globalDefaultTimeRange').value;
+
+      settings.dashboard = {
+        ...settings.dashboard,
+        refreshInterval: refreshIntervalValue,
+        defaultTimeRange: defaultTimeRange
+      };
+
+      await saveSettingsToServer();
+      startAutoRefresh();
+      closeGlobalSettings();
+
+      // Apply default time range if changed
+      if (defaultTimeRange !== timeRange) {
+        document.querySelectorAll('.time-option').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.range === defaultTimeRange);
+        });
+        timeRange = defaultTimeRange;
+        document.getElementById('statTimeRange').textContent = timeRange;
+        refreshAll();
+      }
+    }
+
+    // Update connection indicator
+    function updateConnectionStatus(connected) {
+      const indicator = document.getElementById('connectionIndicator');
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('connectionStatus');
+
+      if (connected) {
+        indicator.classList.remove('error');
+        statusDot.classList.remove('error');
+        statusText.textContent = 'Connected';
+      } else {
+        indicator.classList.add('error');
+        statusDot.classList.add('error');
+        statusText.textContent = 'Disconnected';
+      }
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        closeGlobalSettings();
+      }
+      if (e.key === 'r' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        refreshAll();
+      }
+    });
+  </script>
+</body>
+</html>
