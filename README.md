@@ -24,6 +24,7 @@ A beautiful, modern dashboard for visualizing time-series data from InfluxDB 2.x
 
 - **InfluxDB 2.x** running and accessible
 - **Node.js 20+** (for local development) OR **Docker** (for containerized deployment)
+- **! OBS !** - Docker is running this in dev-mode
 
 ### Required Setup Steps
 
