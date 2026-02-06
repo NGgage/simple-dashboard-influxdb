@@ -1,0 +1,47 @@
+{
+  "panels": [
+    {
+      "id": "panel-example-1",
+      "title": "Temperature Overview",
+      "unit": "°C",
+      "minValue": null,
+      "maxValue": null,
+      "series": [
+        {
+          "device": "living_room_sensor",
+          "measurement": "temperature",
+          "field": "value",
+          "label": "Living Room",
+          "color": "#6366f1"
+        },
+        {
+          "device": "bedroom_sensor",
+          "measurement": "temperature",
+          "field": "value",
+          "label": "Bedroom",
+          "color": "#10b981"
+        }
+      ]
+    },
+    {
+      "id": "panel-example-2",
+      "title": "Humidity",
+      "unit": "%",
+      "minValue": 0,
+      "maxValue": 100,
+      "series": [
+        {
+          "device": "living_room_sensor",
+          "measurement": "humidity",
+          "field": "percent",
+          "label": "Humidity",
+          "color": "#06b6d4"
+        }
+      ]
+    }
+  ],
+  "dashboard": {
+    "refreshInterval": 30000,
+    "defaultTimeRange": "6h"
+  }
+}

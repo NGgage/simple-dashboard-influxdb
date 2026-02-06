@@ -1,0 +1,20 @@
+services:
+  dashboard:
+    build: .
+    container_name: influx-dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - INFLUX_BASE_URL=${INFLUX_BASE_URL:-http://influxdb:8086/api/v2}
+      - INFLUX_BUCKET=${INFLUX_BUCKET}
+      - INFLUX_ORGANIZATION=${INFLUX_ORGANIZATION:-default}
+      - INFLUX_TOKEN=${INFLUX_TOKEN}
+    volumes:
+      - ./settings.json:/app/settings.json
+    networks:
+      - influx-net
+
+networks:
+  influx-net:
+    external: true
